@@ -148,6 +148,17 @@ function av_mode_show_options(str){
 	}
 }
 $(document).ready(function() {
+	$('#av_submit').on('click', function(event){
+		event.preventDefault();
+		$.post(
+				OC.generateUrl('apps/files_antivirus/settings/save'),
+				$('#antivirus').serializeArray(),
+				function(r){	
+				}
+		
+		);
+	});
+	
 	$('#antivirus-advanced').on('click', function () {
 		$('.section-antivirus .spoiler').toggle();
 		antivirusSettings.init();

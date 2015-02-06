@@ -19,7 +19,7 @@ class RuleController extends Controller {
 	private $l10n;
 	
 	public function __construct($appName, IRequest $request, $logger, IL10N $l10n) {
-		$this->settings = $settings;
+		parent::__construct($appName, $request);
 		$this->logger = $logger;
 		$this->l10n = $l10n;
 	}

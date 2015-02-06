@@ -10,21 +10,34 @@ namespace OCA\Files_Antivirus\AppInfo;
 
 use \OCP\AppFramework\App;
 use OCA\Files_Antivirus\Controller\RuleController;
+use OCA\Files_Antivirus\Controller\SettingsController;
+use OCA\Files_Antivirus\Appconfig;
 
 class Application extends App {
 	public function __construct (array $urlParams = array()) {
 		parent::__construct('files_antivirus', $urlParams);
 		
 		$container = $this->getContainer();
+		$container->registerService('Appconfig', function($c) {
+			return new Appconfig(
+				$c->query('CoreConfig')
+			);
+		});
 		/**
 		 * Controllers
 		 */
 		$container->registerService('RuleController', function($c) {
 			return new RuleController(
-				$c->query('AppName'), 
+				$c->query('AppName'),
 				$c->query('Request'),
 				$c->query('Logger'),
 				$c->query('L10N')
+			);
+		});
+		$container->registerService('SettingsController', function($c) {
+			return new SettingsController(
+				$c->query('Request'),
+				$c->query('Appconfig')
 			);
 		});
 		

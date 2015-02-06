@@ -6,7 +6,6 @@
  */
 
 $application = new \OCA\Files_Antivirus\AppInfo\Application();
-
 $application->registerRoutes($this, array(
 	'routes' => array(
 		array('name' => 'rule#listAll', 'url' => 'settings/rule/listall', 'verb' => 'GET'),
@@ -14,13 +13,11 @@ $application->registerRoutes($this, array(
 		array('name' => 'rule#reset', 'url' => 'settings/rule/reset', 'verb' => 'POST'),
 		array('name' => 'rule#save', 'url' => 'settings/rule/save', 'verb' => 'POST'),
 		array('name' => 'rule#delete', 'url' => 'settings/rule/delete', 'verb' => 'POST'),
+		array('name' => 'settings#save', 'url' => 'settings/save', 'verb' => 'POST'),
 	)
 ));
 
 /** @var $this \OCP\Route\IRouter */
 $this->create('files_antivirus_settings', '')
 	->get()
-	->actionInclude('files_antivirus/settings.php');
-$this->create('files_antivirus_settings', '')
-	->post()
 	->actionInclude('files_antivirus/settings.php');
