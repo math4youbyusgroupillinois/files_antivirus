@@ -23,7 +23,7 @@
 
 namespace OCA\Files_Antivirus;
 
-use OC\Files\View;
+use OCA\Files_Antivirus\Item;
 
 abstract class Scanner {
 	// null if not initialized
@@ -31,109 +31,48 @@ abstract class Scanner {
 	// Scanner subclass if initialized
 	protected static $instance = null;
 	
-	// Chunk size
-	protected $chunkSize;
-	
 	// Last scan status
 	protected $status;
 	
-	public function __construct($notUsed=false){
-		$this->chunkSize = \OCP\Config::getAppValue('files_antivirus', 'av_chunk_size', '1024');
-	}
-	
-	/**
-	 * @param View $fileView
-	 * @param string $filePath
-	 * @return mixed
-	 */
-	protected function getFileHandle($fileView, $filePath) {
-		$fileHandle = $fileView->fopen($filePath, "r");
-		if(!$fileHandle) {
-			\OCP\Util::writeLog('files_antivirus', 'File could not be open.', \OCP\Util::ERROR);
-			throw new \RuntimeException();
-		}
-		return $fileHandle;
-	}
+	protected static $appConfig;
 
 	/**
 	 * @param string $path
 	 */
 	public static function av_scan($path) {
 		$path = $path[\OC\Files\Filesystem::signal_param_path];
-		if ($path != '') {
-			if (isset($_POST['dirToken'])){
-				//Public upload case
-				$filesView = \OC\Files\Filesystem::getView();
-			} else {
-				$filesView = \OCP\Files::getStorage("files");
-			}
-			
-			if (!is_object($filesView)){
-				\OCP\Util::writeLog('files_antivirus', 'Can\'t init filesystem view', \OCP\Util::WARN);
-				return;
-			}
-
-			// check if path is a directory
-			if($filesView->is_dir($path)){
-				return;
-			}
-
-			// we should have a file to work with, and the file shouldn't
-			// be empty
-			$fileExists = $filesView->file_exists($path);
-			if (!$fileExists || !$filesView->filesize($path)) {
-				return;
-			}
-			
-			$fileStatus = self::scanFile($filesView, $path);
-			$result = $fileStatus->getNumericStatus();
-			$account = \OCP\User::getUser();
-			if (!$account){
-				$account = 'Guest';
-			}
-
-			switch($result) {
-				case Status::SCANRESULT_UNCHECKED:
-					//TODO: Show warning to the user: The file can not be checked
-					\OCP\Util::writeLog(
-						'files_antivirus', 
-						'Account:' . $account . ' .File:' . $path
-							. ' could not be scanned. Details: ' . $fileStatus->getDetails(),
-						\OCP\Util::WARN
-					);
-					break;
-				case Status::SCANRESULT_INFECTED:
-					\OCP\Util::writeLog(
-						'files_antivirus', 
-						'Virus(es) found: ' . $fileStatus->getDetails() 
-							. 'Account:' . $account . ' .File:' . $path,
-						\OCP\Util::WARN
-					);
-					//remove file
-					$filesView->unlink($path);
-					Notification::sendMail($path);
-					$message = \OCP\Util::getL10N('files_antivirus')->t("Virus detected! Can't upload the file %s", array(basename($path)));
-					\OCP\JSON::error(array("data" => array( "message" => $message)));
-					exit();
-					break;
-				case Status::SCANRESULT_CLEAN:
-					//do nothing
-					break;
-			}
+		if (empty($path)) {
+			return;
 		}
+				
+		if (isset($_POST['dirToken'])){
+			//Public upload case
+			$filesView = \OC\Files\Filesystem::getView();
+		} else {
+			$filesView = \OCP\Files::getStorage("files");
+		}
+			
+		$item = new Item($filesView, $path);
+		if (!$item->isValid()){
+			return;
+		}
+			
+		$fileStatus = self::scanFile($item);
+		$fileStatus->dispatch($item);
 	}
 
 	/**
-	 * @param View $fileView
-	 * @param string $filePath
+	 * @param Item $item
 	 * @return Status
 	 */
-	public static function scanFile($fileView, $filePath) {
+	public static function scanFile($item) {
+		$application = new \OCA\Files_Antivirus\AppInfo\Application();
+		self::$appConfig = $application->getContainer()->query('Appconfig');
 		$instance = self::getInstance();
 
 		if ($instance instanceof Scanner){
 			try {
-				$instance->scan($fileView, $filePath);
+				$instance->scan($item);
 			} catch (\Exception $e){
 				\OCP\Util::writeLog('files_antivirus', $e->getMessage(), \OCP\Util::ERROR);
 			}
@@ -155,13 +94,11 @@ abstract class Scanner {
 	private static function getInstance(){
 		if (is_null(self::$instance)){
 			try {
-				$avMode = \OCP\Config::getAppValue('files_antivirus', 'av_mode', 'executable');
+				$avMode = self::$appConfig->getAvMode();
 				switch($avMode) {
 					case 'daemon':
-						self::$instance = new \OCA\Files_Antivirus\Scanner\External(false);
-						break;
 					case 'socket':
-						self::$instance = new \OCA\Files_Antivirus\Scanner\External(true);
+						self::$instance = new \OCA\Files_Antivirus\Scanner\External();
 						break;
 					case 'executable':
 						self::$instance = new \OCA\Files_Antivirus\Scanner\Local();
@@ -180,10 +117,8 @@ abstract class Scanner {
 	}
 
 	/**
-	 * @param View $fileView
-	 * @param string $filePath
+	 * @param Item $item
 	 * @return mixed
 	 */
-	abstract protected function scan($fileView, $filePath);
-
+	abstract protected function scan(Item $item);
 }
